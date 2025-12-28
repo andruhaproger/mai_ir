@@ -1,0 +1,32 @@
+db:
+  type: sqlite
+  path: robot.db
+
+logic:
+  user_agent: "MAI-IR-Lab02-SeaRobot/1.1 (educational)"
+  delay_seconds: 0.25
+  max_pages: 2500
+  recrawl_after_seconds: 604800
+  max_links_per_page: 200
+  max_frontier: 250000
+  commit_every: 100
+
+  sources:
+    - name: wikipedia_en
+      seeds:
+        - "https://en.wikipedia.org/wiki/Ocean"
+        - "https://en.wikipedia.org/wiki/Sea"
+        - "https://en.wikipedia.org/wiki/Marine_biology"
+      allowed_domains:
+        - "en.wikipedia.org"
+      allow_prefixes:
+        - "https://en.wikipedia.org/wiki/"
+
+    - name: marinelink
+      seeds:
+        - "https://www.marinelink.com/maritime-news"
+      allowed_domains:
+        - "www.marinelink.com"
+        - "marinelink.com"
+      allow_prefixes:
+        - "https://www.marinelink.com/"
