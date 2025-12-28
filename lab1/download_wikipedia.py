@@ -116,7 +116,7 @@ def existing_pageids(out_dir: str) -> Set[int]:
 def main():
     ap = argparse.ArgumentParser(description="Wikipedia EN crawler (Sea/Maritime categories).")
     ap.add_argument("--out_dir", default=os.path.join("data_raw", "wikipedia_en"))
-    ap.add_argument("--max_fetch", type=int, default=36217, help="Макс. успешных скачиваний страниц (до фильтра).")
+    ap.add_argument("--max_fetch", type=int, default=36000, help="Макс. успешных скачиваний страниц (до фильтра).")
 
     ap.add_argument("--min_html_chars", type=int, default=3200, help="Фильтр: минимальная длина HTML.")
     ap.add_argument("--max_depth", type=int, default=6)
@@ -290,3 +290,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
