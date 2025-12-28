@@ -35,7 +35,7 @@ def api_get(session: requests.Session, params: Dict, timeout: int, retries: int,
         except Exception as e:
             last_err = e
             time.sleep(backoff * (2 ** i))
-    raise last_err  # type: ignore
+    raise last_err  
 
 
 def list_category_members(
@@ -65,7 +65,7 @@ def list_category_members(
             "format": "json",
             "list": "categorymembers",
             "cmtitle": f"Category:{cat}",
-            "cmtype": cmtype,     # 'page' or 'subcat'
+            "cmtype": cmtype,     # 'page' or subcat
             "cmlimit": 500,
             "cmnamespace": cmnamespace,
         }
@@ -155,7 +155,7 @@ def main():
 
     saved_ids = existing_pageids(args.out_dir)
     kept = len(saved_ids)
-    kept_start = kept  # ✅ нужно для корректного keep_rate при resume
+    kept_start = kept  
 
     fetched_ok = 0
     rejected_short = 0
@@ -175,7 +175,7 @@ def main():
             continue
         seen_cats.add(cat)
 
-        # subcategories
+        #subcategories
         if depth < args.max_depth:
             try:
                 subcats = list_category_members(
@@ -199,7 +199,7 @@ def main():
                 if title and title not in seen_cats:
                     queue.append((title, depth + 1))
 
-        # pages
+        #pages
         try:
             pages = list_category_members(
                 s,
@@ -294,3 +294,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
