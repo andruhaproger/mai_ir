@@ -36,7 +36,7 @@ def get_html(session: requests.Session, url: str, timeout: int, retries: int, ba
         except Exception as e:
             last_err = e
             time.sleep(backoff * (2 ** i))
-    raise last_err  
+    raise last_err
 
 
 def extract_news_links(list_html: str) -> List[str]:
@@ -87,8 +87,7 @@ def existing_ids(out_dir: str) -> Set[str]:
 def main():
     ap = argparse.ArgumentParser(description="MarineLink crawler (Maritime News).")
     ap.add_argument("--out_dir", default=os.path.join("data_raw", "marinelink"))
-    ap.add_argument("--target_kept", type=int, default=7013)
-    ap.add_argument("--max_fetch", type=int, default=8839, help="Макс. успешных скачиваний (учёт отбраковки).")
+    ap.add_argument("--max_fetch", type=int, default=8839, help="Макс. успешных скачиваний (до фильтра).")
 
     ap.add_argument("--max_pages", type=int, default=720, help="Глубина пагинации listing.")
     ap.add_argument("--sleep", type=float, default=0.7)
@@ -98,7 +97,7 @@ def main():
     ap.add_argument("--retries", type=int, default=2)
     ap.add_argument("--backoff", type=float, default=0.8)
 
-    ap.add_argument("--ua", default="MAI-IR-Lab01-SeaCorpus/3.1 (educational; polite crawler)")
+    ap.add_argument("--ua", default="MAI-IR-Lab01-SeaCorpus/3.2 (educational; polite crawler)")
     args = ap.parse_args()
 
     os.makedirs(args.out_dir, exist_ok=True)
@@ -108,15 +107,15 @@ def main():
     s.headers.update({"User-Agent": args.ua})
 
     saved_ids = existing_ids(args.out_dir)
-    kept = len(saved_ids)
-    kept_start = kept  
+    kept_total = len(saved_ids)
+    kept_start = kept_total
 
     fetched_ok = 0
     rejected_short = 0
     rejected_dup = 0
     errors = 0
+    scanned_links = 0
 
-    
     all_links: List[str] = []
     for page in range(1, args.max_pages + 1):
         url = LISTING if page == 1 else f"{LISTING}?page={page}"
@@ -129,7 +128,6 @@ def main():
         all_links.extend(extract_news_links(html))
         time.sleep(args.sleep)
 
-    
     uniq_links: List[str] = []
     seen_links: Set[str] = set()
     for u in all_links:
@@ -139,21 +137,24 @@ def main():
         uniq_links.append(u)
         seen_links.add(u)
 
-    pbar = tqdm(total=args.target_kept, initial=min(kept, args.target_kept), desc="MarineLink kept")
+    pbar = tqdm(total=args.max_fetch, initial=0, desc="MarineLink fetched_ok")
 
-    
     for link in uniq_links:
-        if kept >= args.target_kept or fetched_ok >= args.max_fetch:
+        if fetched_ok >= args.max_fetch:
             break
+
+        scanned_links += 1
 
         m = re.search(r"-(\d{4,})$", link)
         doc_id = m.group(1) if m else safe_slug(link)
         if doc_id in saved_ids:
+            rejected_dup += 1
             continue
 
         try:
             html = get_html(s, link, timeout=args.timeout, retries=args.retries, backoff=args.backoff)
             fetched_ok += 1
+            pbar.update(1)
         except Exception:
             errors += 1
             time.sleep(args.sleep)
@@ -177,23 +178,22 @@ def main():
         write_json(os.path.join(args.out_dir, fname), doc)
 
         saved_ids.add(doc_id)
-        kept += 1
-        pbar.update(1)
+        kept_total += 1
         time.sleep(args.sleep)
 
     pbar.close()
 
-    kept_new = kept - kept_start
+    kept_new = kept_total - kept_start
     keep_rate = (kept_new / fetched_ok) if fetched_ok else 0.0
 
     report = {
         "source": "marinelink",
-        "target_kept": args.target_kept,
         "max_fetch": args.max_fetch,
 
-        "kept_total": kept,
+        "kept_total": kept_total,
         "kept_new": kept_new,
 
+        "scanned_links": scanned_links,
         "fetched_ok": fetched_ok,
         "rejected_short": rejected_short,
         "rejected_dup": rejected_dup,
@@ -209,10 +209,9 @@ def main():
 
     print("MarineLink done.")
     print(report)
-    if kept < args.target_kept:
-        print("Note: if not enough kept docs, try increasing --max_pages or lowering --min_body_chars.")
+    if fetched_ok < args.max_fetch:
+        print("Note: not enough new pages reached --max_fetch. Try increasing --max_pages or lowering --min_body_chars.")
 
 
 if __name__ == "__main__":
     main()
-
