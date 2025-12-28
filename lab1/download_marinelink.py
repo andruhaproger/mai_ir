@@ -36,7 +36,7 @@ def get_html(session: requests.Session, url: str, timeout: int, retries: int, ba
         except Exception as e:
             last_err = e
             time.sleep(backoff * (2 ** i))
-    raise last_err  # type: ignore
+    raise last_err  
 
 
 def extract_news_links(list_html: str) -> List[str]:
@@ -109,14 +109,14 @@ def main():
 
     saved_ids = existing_ids(args.out_dir)
     kept = len(saved_ids)
-    kept_start = kept  # ✅ для корректного keep_rate при resume
+    kept_start = kept  
 
     fetched_ok = 0
     rejected_short = 0
     rejected_dup = 0
     errors = 0
 
-    # 1) собрать ссылки из listing (может быть много дублей)
+    
     all_links: List[str] = []
     for page in range(1, args.max_pages + 1):
         url = LISTING if page == 1 else f"{LISTING}?page={page}"
@@ -129,7 +129,7 @@ def main():
         all_links.extend(extract_news_links(html))
         time.sleep(args.sleep)
 
-    # 2) unique + считаем дубли реалистично ✅
+    
     uniq_links: List[str] = []
     seen_links: Set[str] = set()
     for u in all_links:
@@ -141,7 +141,7 @@ def main():
 
     pbar = tqdm(total=args.target_kept, initial=min(kept, args.target_kept), desc="MarineLink kept")
 
-    # 3) качать статьи, пока не наберём target_kept или max_fetch
+    
     for link in uniq_links:
         if kept >= args.target_kept or fetched_ok >= args.max_fetch:
             break
@@ -215,3 +215,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
