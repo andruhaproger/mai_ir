@@ -35,7 +35,7 @@ def api_get(session: requests.Session, params: Dict, timeout: int, retries: int,
         except Exception as e:
             last_err = e
             time.sleep(backoff * (2 ** i))
-    raise last_err  
+    raise last_err
 
 
 def list_category_members(
@@ -48,12 +48,6 @@ def list_category_members(
     retries: int,
     backoff: float,
 ) -> List[Dict]:
-    """
-    Возвращает до limit элементов из categorymembers (page или subcat) с пагинацией.
-    Реалистично ограничиваем namespace:
-      - pages: namespace 0 (основные статьи)
-      - subcats: namespace 14 (категории)
-    """
     out: List[Dict] = []
     cont = None
 
@@ -65,7 +59,7 @@ def list_category_members(
             "format": "json",
             "list": "categorymembers",
             "cmtitle": f"Category:{cat}",
-            "cmtype": cmtype,     # 'page' or subcat
+            "cmtype": cmtype,
             "cmlimit": 500,
             "cmnamespace": cmnamespace,
         }
@@ -92,9 +86,6 @@ def fetch_page_html(
     retries: int,
     backoff: float,
 ) -> Optional[str]:
-    """
-    action=parse -> HTML статьи
-    """
     params = {
         "action": "parse",
         "format": "json",
@@ -110,9 +101,6 @@ def fetch_page_html(
 
 
 def existing_pageids(out_dir: str) -> Set[int]:
-    """
-    Resume: если файл уже сохранён, повторно не скачиваем.
-    """
     ids: Set[int] = set()
     if not os.path.isdir(out_dir):
         return ids
@@ -128,8 +116,7 @@ def existing_pageids(out_dir: str) -> Set[int]:
 def main():
     ap = argparse.ArgumentParser(description="Wikipedia EN crawler (Sea/Maritime categories).")
     ap.add_argument("--out_dir", default=os.path.join("data_raw", "wikipedia_en"))
-    ap.add_argument("--target_kept", type=int, default=35041, help="Сколько документов сохранить (после фильтра).")
-    ap.add_argument("--max_fetch", type=int, default=36217, help="Макс. успешных скачиваний страниц (учёт отбраковки).")
+    ap.add_argument("--max_fetch", type=int, default=36217, help="Макс. успешных скачиваний страниц (до фильтра).")
 
     ap.add_argument("--min_html_chars", type=int, default=3200, help="Фильтр: минимальная длина HTML.")
     ap.add_argument("--max_depth", type=int, default=6)
@@ -142,7 +129,7 @@ def main():
     ap.add_argument("--cat_page_limit", type=int, default=9000)
     ap.add_argument("--cat_sub_limit", type=int, default=1800)
 
-    ap.add_argument("--ua", default="MAI-IR-Lab01-SeaCorpus/3.1 (educational; polite crawler)")
+    ap.add_argument("--ua", default="MAI-IR-Lab01-SeaCorpus/3.2 (educational; polite crawler)")
     ap.add_argument(
         "--seed_categories",
         nargs="+",
@@ -154,12 +141,14 @@ def main():
     os.makedirs("out", exist_ok=True)
 
     saved_ids = existing_pageids(args.out_dir)
-    kept = len(saved_ids)
-    kept_start = kept  
+    kept_total = len(saved_ids)
+    kept_start = kept_total
 
     fetched_ok = 0
     rejected_short = 0
+    rejected_dup = 0
     errors = 0
+    scanned_pages = 0
 
     s = requests.Session()
     s.headers.update({"User-Agent": args.ua})
@@ -167,15 +156,14 @@ def main():
     queue: deque[Tuple[str, int]] = deque((c, 0) for c in args.seed_categories)
     seen_cats: Set[str] = set()
 
-    pbar = tqdm(total=args.target_kept, initial=min(kept, args.target_kept), desc="Wikipedia EN kept")
+    pbar = tqdm(total=args.max_fetch, initial=0, desc="Wikipedia EN fetched_ok")
 
-    while queue and kept < args.target_kept and fetched_ok < args.max_fetch:
+    while queue and fetched_ok < args.max_fetch:
         cat, depth = queue.popleft()
         if cat in seen_cats:
             continue
         seen_cats.add(cat)
 
-        #subcategories
         if depth < args.max_depth:
             try:
                 subcats = list_category_members(
@@ -199,7 +187,6 @@ def main():
                 if title and title not in seen_cats:
                     queue.append((title, depth + 1))
 
-        #pages
         try:
             pages = list_category_members(
                 s,
@@ -216,7 +203,7 @@ def main():
             continue
 
         for p in pages:
-            if kept >= args.target_kept or fetched_ok >= args.max_fetch:
+            if fetched_ok >= args.max_fetch:
                 break
 
             pageid = p.get("pageid")
@@ -224,19 +211,24 @@ def main():
             if not pageid or not title:
                 continue
 
+            scanned_pages += 1
             pid = int(pageid)
+
             if pid in saved_ids:
+                rejected_dup += 1
                 continue
 
             try:
                 html = fetch_page_html(
-                    s, pid,
+                    s,
+                    pid,
                     sleep_s=args.sleep,
                     timeout=args.timeout,
                     retries=args.retries,
                     backoff=args.backoff,
                 )
                 fetched_ok += 1
+                pbar.update(1)
             except Exception:
                 errors += 1
                 continue
@@ -259,24 +251,24 @@ def main():
             write_json(os.path.join(args.out_dir, fname), doc)
 
             saved_ids.add(pid)
-            kept += 1
-            pbar.update(1)
+            kept_total += 1
 
     pbar.close()
 
-    kept_new = kept - kept_start
+    kept_new = kept_total - kept_start
     keep_rate = (kept_new / fetched_ok) if fetched_ok else 0.0
 
     report = {
         "source": "wikipedia_en",
-        "target_kept": args.target_kept,
         "max_fetch": args.max_fetch,
 
-        "kept_total": kept,
+        "kept_total": kept_total,
         "kept_new": kept_new,
 
+        "scanned_pages": scanned_pages,
         "fetched_ok": fetched_ok,
         "rejected_short": rejected_short,
+        "rejected_dup": rejected_dup,
         "errors": errors,
         "keep_rate": keep_rate,
 
@@ -285,13 +277,16 @@ def main():
         "min_html_chars": args.min_html_chars,
         "max_depth": args.max_depth,
         "seed_categories": args.seed_categories,
+        "cat_page_limit": args.cat_page_limit,
+        "cat_sub_limit": args.cat_sub_limit,
     }
     write_json(os.path.join("out", "wiki_report.json"), report)
 
     print("Wikipedia done.")
     print(report)
+    if fetched_ok < args.max_fetch:
+        print("Note: hit category frontier before reaching --max_fetch. Try increasing --max_depth or limits.")
 
 
 if __name__ == "__main__":
     main()
-
