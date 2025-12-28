@@ -87,7 +87,7 @@ def existing_ids(out_dir: str) -> Set[str]:
 def main():
     ap = argparse.ArgumentParser(description="MarineLink crawler (Maritime News).")
     ap.add_argument("--out_dir", default=os.path.join("data_raw", "marinelink"))
-    ap.add_argument("--max_fetch", type=int, default=8839, help="Макс. успешных скачиваний (до фильтра).")
+    ap.add_argument("--max_fetch", type=int, default=9000, help="Макс. успешных скачиваний (до фильтра).")
 
     ap.add_argument("--max_pages", type=int, default=720, help="Глубина пагинации listing.")
     ap.add_argument("--sleep", type=float, default=0.7)
@@ -215,3 +215,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
