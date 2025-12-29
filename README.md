@@ -48,10 +48,10 @@ lab3/ — tokenizer.cpp (статистика токенизации)
 lab4/ — stemming.cpp (статистика после стемминга)
 
 lab5/ — zipf.py (построение Zipf-графика)
-```
 
 lab7/ — boolindex.cpp (построение булевого индекса)
 
 lab8/ — boolsearch.cpp (булев поиск) + web.py (веб-интерфейс)
 
 mystl/ — собственные структуры (vector/hashmap)
+```
